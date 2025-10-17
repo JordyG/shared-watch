@@ -8,27 +8,37 @@ let meId = null;
 let player;
 let ytReady = false;
 
-// Voor zachte correctie
+// Voor zachte correctie en stabiele host-tijd
 let rateResetTimer = null;
+let lastKnownTime = 0;
 
-// Laad de YouTube IFrame API dynamisch
+// YouTube IFrame API dynamisch laden
 (function loadYT() {
   const tag = document.createElement("script");
   tag.src = "https://www.youtube.com/iframe_api";
   document.head.appendChild(tag);
 })();
 
-// Deze callback moet global zijn voor de YT API
 window.onYouTubeIframeAPIReady = function () {
   ytReady = true;
 };
 
-// Helper om huidige tijd veilig te lezen
+// Hulpjes
 function safeCurrentTime() {
   try { return player?.getCurrentTime() ?? 0; } catch { return 0; }
 }
 
-// Parse een YouTube link of direct videoId
+// Geeft een stabiele tijd terug zodat we niet per ongeluk 0 uitzenden
+function stableTime() {
+  const t = safeCurrentTime();
+  if (t > 0.25) {
+    lastKnownTime = t;
+    return t;
+  }
+  // Als de player net play triggert kan t heel even 0 zijn. Val terug op de laatste betrouwbare tijd.
+  return lastKnownTime > 0.25 ? lastKnownTime : t;
+}
+
 function parseYouTubeId(url) {
   if (!url) return null;
   try {
@@ -41,12 +51,12 @@ function parseYouTubeId(url) {
       const idx = parts.findIndex(p => p === "shorts" || p === "embed");
       if (idx >= 0 && parts[idx + 1]) return parts[idx + 1];
     }
-  } catch { /* mogelijk direct een id */ }
+  } catch {}
   const idLike = url.trim();
   return /^[a-zA-Z0-9_-]{11}$/.test(idLike) ? idLike : null;
 }
 
-// Player aanmaken of vervangen
+// Player aanmaken
 function createPlayer(videoId) {
   if (!ytReady) return;
   if (player) { player.destroy(); }
@@ -61,19 +71,28 @@ function createPlayer(videoId) {
     },
     events: {
       onReady: () => {
-        // Geen periodieke forced sync meer
+        lastKnownTime = 0;
       },
       onStateChange: (e) => {
         const isHost = meId === hostId;
         if (!isHost) return;
 
-        const t = safeCurrentTime();
+        // kleine delay helpt soms om een vers tijdstip te krijgen na play
+        const send = (action) => {
+          // gebruik stabiele tijd, geen 0 spurts
+          const t = stableTime();
+          emitControl(action, t);
+        };
 
-        // Host stuurt alleen bij echte interacties
         if (e.data === YT.PlayerState.PLAYING) {
-          emitControl("play", t);
+          // update lastKnownTime nog een keer net na start
+          setTimeout(() => {
+            lastKnownTime = stableTime();
+            send("play");
+          }, 50);
         } else if (e.data === YT.PlayerState.PAUSED) {
-          emitControl("pause", t);
+          lastKnownTime = stableTime();
+          send("pause");
         }
       },
       onError: (e) => {
@@ -91,9 +110,9 @@ function createPlayer(videoId) {
   });
 }
 
-// Socket verbinden
+// Socket verbinding
 function connectSocket() {
-  socket = io(); // relative, werkt lokaal en op Render
+  socket = io();
   meId = socket.id;
 
   socket.on("connect", () => { meId = socket.id; });
@@ -103,7 +122,6 @@ function connectSocket() {
     updateHostBadge();
 
     if (videoId) {
-      // Maak of vervang player indien andere video
       if (!player) {
         createPlayer(videoId);
       } else {
@@ -112,12 +130,11 @@ function connectSocket() {
           createPlayer(videoId);
         }
       }
-      // Pas sync toe op client, host negeert
       applySync(playback);
     }
   });
 
-  socket.on("peer-join", () => { /* optioneel UI update */ });
+  socket.on("peer-join", () => {});
 
   socket.on("host-changed", ({ hostId: h }) => {
     hostId = h;
@@ -125,12 +142,10 @@ function connectSocket() {
   });
 
   socket.on("sync", (playback) => {
-    // Host past geen sync toe op zichzelf
     applySync(playback);
   });
 }
 
-// UI helpers
 function updateHostBadge() {
   const el = document.getElementById("hostBadge");
   if (!el) return;
@@ -143,11 +158,11 @@ function updateHostBadge() {
   }
 }
 
-// Zachte synchronisatie op clients
+// Zachte synchronisatie bij clients
 function applySync(playback) {
   if (!player || !playback) return;
 
-  // Host corrigeert zichzelf niet om feedback loops te vermijden
+  // host negeert eigen sync
   if (meId === hostId) return;
 
   const rate = playback.playbackRate || 1;
@@ -160,10 +175,10 @@ function applySync(playback) {
   }
 
   const actual = safeCurrentTime();
-  const diff = expected - actual; // positief betekent dat wij achterlopen
+  const diff = expected - actual;
   const abs = Math.abs(diff);
 
-  // Play/pause status afstemmen
+  // play/pause afstemmen
   const shouldPlay = playback.isPlaying;
   const state = player.getPlayerState?.();
   if (shouldPlay && state !== YT.PlayerState.PLAYING) {
@@ -172,36 +187,32 @@ function applySync(playback) {
     try { player.pauseVideo(); } catch {}
   }
 
-  // Snelheid normaliseren voor we corrigeren
+  // normaliseer rate
   try {
     if (player.getPlaybackRate && player.getPlaybackRate() !== rate) {
       player.setPlaybackRate(rate);
     }
   } catch {}
 
-  // Reset vorige nudge timer
   if (rateResetTimer) { clearTimeout(rateResetTimer); rateResetTimer = null; }
 
-  // Correctiebeleid
   if (abs > 1.5) {
-    // Grote afwijking. Eenmalige seek
+    // grote afwijking, eenmalige seek
     try { player.seekTo(expected, true); } catch {}
-    // Zorg terug naar normale rate
     try { if (player.getPlaybackRate?.() !== rate) player.setPlaybackRate(rate); } catch {}
   } else if (abs > 0.3 && shouldPlay) {
-    // Kleine afwijking. Tijdelijke nudge met licht andere snelheid
-    const nudge = diff > 0 ? 1.1 : 0.9; // achter? iets sneller. voor? iets langzamer
+    // kleine afwijking, nudge
+    const nudge = diff > 0 ? 1.1 : 0.9;
     try { player.setPlaybackRate(nudge); } catch {}
     rateResetTimer = setTimeout(() => {
       try { player.setPlaybackRate(rate); } catch {}
     }, 2000);
   } else {
-    // In sync
     try { if (player.getPlaybackRate?.() !== rate) player.setPlaybackRate(rate); } catch {}
   }
 }
 
-// Controle events uitsturen
+// Control events uitsturen
 function emitControl(action, time, playbackRate) {
   if (!roomId) return;
   socket.emit("control", {
@@ -212,7 +223,7 @@ function emitControl(action, time, playbackRate) {
   });
 }
 
-// DOM en event handlers
+// DOM events
 document.addEventListener("DOMContentLoaded", () => {
   connectSocket();
 
@@ -242,31 +253,37 @@ document.addEventListener("DOMContentLoaded", () => {
     const id = parseYouTubeId(urlInput.value);
     if (!id) { alert("Ongeldige YouTube link of videoId"); return; }
     if (!player) createPlayer(id);
+    // bij nieuw laden reset lastKnownTime
+    lastKnownTime = 0;
     socket.emit("set-video", { roomId, videoId: id });
   };
 
   playBtn.onclick = () => {
     if (meId !== hostId) return;
     try { player.playVideo(); } catch {}
-    emitControl("play", safeCurrentTime());
+    // gebruik stabiele tijd, niet direct safeCurrentTime
+    emitControl("play", stableTime());
   };
 
   pauseBtn.onclick = () => {
     if (meId !== hostId) return;
     try { player.pauseVideo(); } catch {}
-    emitControl("pause", safeCurrentTime());
+    lastKnownTime = stableTime();
+    emitControl("pause", lastKnownTime);
   };
 
   back10.onclick = () => {
     if (meId !== hostId) return;
-    const t = Math.max(0, safeCurrentTime() - 10);
+    const t = Math.max(0, stableTime() - 10);
+    lastKnownTime = t;
     try { player.seekTo(t, true); } catch {}
     emitControl("seek", t);
   };
 
   fwd10.onclick = () => {
     if (meId !== hostId) return;
-    const t = safeCurrentTime() + 10;
+    const t = stableTime() + 10;
+    lastKnownTime = t;
     try { player.seekTo(t, true); } catch {}
     emitControl("seek", t);
   };
@@ -275,6 +292,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (meId !== hostId) return;
     const rate = parseFloat(rateSelect.value);
     try { player.setPlaybackRate(rate); } catch {}
-    emitControl("rate", safeCurrentTime(), rate);
+    emitControl("rate", stableTime(), rate);
   };
 });

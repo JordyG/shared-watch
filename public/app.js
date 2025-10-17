@@ -133,10 +133,10 @@ function applySync(playback) {
   const state = player.getPlayerState?.();
   const shouldPlay = playback.isPlaying;
 
-  if (diff > 0.4) {
-    // Correctie
-    player.seekTo(expected, true);
-  }
+  if (diff > 2.0) {
+  // Alleen kleine correctie als iemand echt uit sync is
+  player.seekTo(expected, true);
+}
 
   if (shouldPlay && state !== YT.PlayerState.PLAYING) {
     player.playVideo();

@@ -10,46 +10,76 @@
   </head>
   <body>
     <main class="container">
-      <h1>Shared Watch</h1>
-
-      <section class="panel">
-        <label>Room code</label>
-        <div class="row">
-          <input id="roomInput" placeholder="bijv. team123" />
-          <button id="joinBtn">Join</button>
-        </div>
-        <p id="roomStatus" class="muted">Nog niet verbonden</p>
-      </section>
-
-      <section class="panel">
-        <label>YouTube link</label>
-        <div class="row">
-          <input id="urlInput" placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
-          <button id="loadBtn">Laad video</button>
-        </div>
-        <p class="muted">Alleen de host kan de video wisselen</p>
-      </section>
-
-      <section class="video-panel">
-        <div id="player"></div>
-      </section>
-
-      <section class="controls">
-        <button id="playBtn">Play</button>
-        <button id="pauseBtn">Pause</button>
-        <button id="back10">&larr; 10s</button>
-        <button id="fwd10">10s &rarr;</button>
-        <label>Snelheid
-          <select id="rateSelect">
-            <option>0.5</option>
-            <option>0.75</option>
-            <option selected>1</option>
-            <option>1.25</option>
-            <option>1.5</option>
-            <option>2</option>
-          </select>
-        </label>
+      <header class="topbar">
+        <h1>Shared Watch</h1>
         <span id="hostBadge" class="badge">Gast</span>
+      </header>
+
+      <!-- naam en room eerst -->
+      <section class="panel">
+        <div class="grid-2">
+          <div>
+            <label>Jouw naam</label>
+            <input id="nameInput" placeholder="bijv. Jordy" />
+          </div>
+          <div>
+            <label>Room code</label>
+            <input id="roomInput" placeholder="bijv. team123" />
+          </div>
+        </div>
+        <div class="row">
+          <button id="joinBtn">Join</button>
+          <p id="roomStatus" class="muted">Nog niet verbonden</p>
+        </div>
+      </section>
+
+      <section class="layout">
+        <div class="left">
+          <section class="panel">
+            <label>YouTube link</label>
+            <div class="row">
+              <input id="urlInput" placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
+              <button id="loadBtn">Laad video</button>
+            </div>
+            <p class="muted">Alleen de host kan de video wisselen</p>
+          </section>
+
+          <section class="video-panel">
+            <div id="player"></div>
+          </section>
+
+          <section class="controls">
+            <button id="playBtn">Play</button>
+            <button id="pauseBtn">Pause</button>
+            <button id="back10">&larr; 10s</button>
+            <button id="fwd10">10s &rarr;</button>
+            <label>Snelheid
+              <select id="rateSelect">
+                <option>0.5</option>
+                <option>0.75</option>
+                <option selected>1</option>
+                <option>1.25</option>
+                <option>1.5</option>
+                <option>2</option>
+              </select>
+            </label>
+          </section>
+        </div>
+
+        <aside class="chat">
+          <div class="chat-header">
+            <div>Chat</div>
+            <div class="users">
+              <span class="muted">Deelnemers</span>
+              <ul id="userList"></ul>
+            </div>
+          </div>
+          <div id="chatLog" class="chat-log"></div>
+          <div class="chat-input">
+            <input id="chatMessage" placeholder="Bericht typen..." />
+            <button id="chatSend">Stuur</button>
+          </div>
+        </aside>
       </section>
 
       <section class="help panel">
@@ -58,7 +88,7 @@
           <ul>
             <li>Autoplay kan door de browser geblokkeerd zijn. Klik eenmaal op de player om audio te activeren.</li>
             <li>Als de host vertrekt, wordt automatisch een nieuwe host gekozen.</li>
-            <li>Er is driftcorrectie. Een kleine sprong kan af en toe zichtbaar zijn.</li>
+            <li>Er is zachte driftcorrectie. Een kleine snelheidsnudge kan af en toe gebeuren.</li>
           </ul>
         </details>
       </section>

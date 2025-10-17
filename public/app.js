@@ -225,16 +225,19 @@ document.addEventListener("DOMContentLoaded", () => {
 // Periodieke driftcheck vanuit client
 function driftCheck() {
   if (!player) return;
-  // Alleen host zendt updates wanneer playing, voorkomt onnodige spam
-  if (meId === hostId) {
-    const state = player.getPlayerState?.();
-    const isPlaying = state === YT.PlayerState.PLAYING;
-    const payload = {
-      isPlaying,
-      currentTime: safeCurrentTime(),
-      updatedAt: Date.now(),
-      playbackRate: player.getPlaybackRate?.() || 1
-    };
-    socket.emit("control", { roomId, action: "seek", currentTime: payload.currentTime });
-  }
+
+  // Alleen de host bepaalt de timing
+  if (meId !== hostId) return;
+
+  const isPlaying = player.getPlayerState?.() === YT.PlayerState.PLAYING;
+  const currentTime = safeCurrentTime();
+
+  // Verstuur alleen statusupdate (geen seek) als er iets is veranderd
+  socket.emit("control", {
+    roomId,
+    action: isPlaying ? "play" : "pause",
+    currentTime,
+    playbackRate: player.getPlaybackRate?.() || 1,
+  });
 }
+

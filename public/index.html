@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shared Watch</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Shared Watch</h1>
+
+      <section class="panel">
+        <label>Room code</label>
+        <div class="row">
+          <input id="roomInput" placeholder="bijv. team123" />
+          <button id="joinBtn">Join</button>
+        </div>
+        <p id="roomStatus" class="muted">Nog niet verbonden</p>
+      </section>
+
+      <section class="panel">
+        <label>YouTube link</label>
+        <div class="row">
+          <input id="urlInput" placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
+          <button id="loadBtn">Laad video</button>
+        </div>
+        <p class="muted">Alleen de host kan de video wisselen</p>
+      </section>
+
+      <section class="video-panel">
+        <div id="player"></div>
+      </section>
+
+      <section class="controls">
+        <button id="playBtn">Play</button>
+        <button id="pauseBtn">Pause</button>
+        <button id="back10">&larr; 10s</button>
+        <button id="fwd10">10s &rarr;</button>
+        <label>Snelheid
+          <select id="rateSelect">
+            <option>0.5</option>
+            <option>0.75</option>
+            <option selected>1</option>
+            <option>1.25</option>
+            <option>1.5</option>
+            <option>2</option>
+          </select>
+        </label>
+        <span id="hostBadge" class="badge">Gast</span>
+      </section>
+
+      <section class="help panel">
+        <details>
+          <summary>Tips en veelvoorkomende issues</summary>
+          <ul>
+            <li>Autoplay kan door de browser geblokkeerd zijn. Klik eenmaal op de player om audio te activeren.</li>
+            <li>Als de host vertrekt, wordt automatisch een nieuwe host gekozen.</li>
+            <li>Er is driftcorrectie. Een kleine sprong kan af en toe zichtbaar zijn.</li>
+          </ul>
+        </details>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
